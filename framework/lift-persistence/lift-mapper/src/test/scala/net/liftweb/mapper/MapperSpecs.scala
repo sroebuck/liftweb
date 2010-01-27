@@ -18,51 +18,70 @@ package net.liftweb {
 package mapper {
 
 import _root_.org.specs._
-import _root_.org.specs.runner.JUnit3
-import _root_.org.specs.runner.ConsoleRunner
 import _root_.net.liftweb.common._
 import _root_.net.liftweb.util._
 import Helpers._
 import _root_.net.liftweb.json._
 import _root_.java.sql.{Connection, DriverManager}
-
+import runner.{ConsoleRunner, JUnit3}
 //import _root_.net.liftweb.mapper.DBVendors.{MySqlRunner, DerbyRunner}
 
 class MapperSpecsAsTest extends JUnit3(MapperSpecs)
 object MapperSpecsRunner extends ConsoleRunner(MapperSpecs)
 
 object MapperSpecs extends Specification {
+
+  val doLog = false
+  //def providers = DBProviders.H2MemoryProvider :: Nil
   def providers = DBProviders.asList
 
-  /*
-   private def logDBStuff(log: DBLog, len: Long) {
-   println(" in log stuff "+log.getClass.getName)
-   log match {
-   case null =>
-   case _ => println(log.allEntries)
-   }
-   }
-
-   DB.addLogFunc(logDBStuff)
-   */
-
-  def dbSetup() {
-    Schemifier.destroyTables_!!(ignoreLogger _, SampleModel, SampleTag, 
-                                Dog, User, Mixer, Dog2)
-    Schemifier.schemify(true, ignoreLogger _, SampleModel, SampleTag,
-                        User, Dog, Mixer, Dog2)
+  private def logDBStuff(log: DBLog, len: Long) {
+    println(" in log stuff "+log.getClass.getName)
+    log match {
+      case null =>
+      case _ => println(log.allEntries)
+    }
   }
 
-  providers.foreach(provider => {
+  if (!DB.loggingEnabled_? && doLog)
+    DB.addLogFunc(logDBStuff)
 
+  val lowerCase = beforeContext({
+    MapperRules.columnName = s => s.toLowerCase
+    MapperRules.tableName = s => s.toLowerCase
+  })
+
+  val snakeCase = beforeContext({
+    MapperRules.columnName = s => ClassHelpers.unCamelCase(s)
+    MapperRules.tableName = s => ClassHelpers.unCamelCase(s)
+  })
+ 
+  providers.foreach(provider => {
       def cleanup() {
         try { provider.setupDB } catch { case e if !provider.required_? => skip("Provider %s not available: %s".format(provider, e)) }
-
-        Schemifier.destroyTables_!!(ignoreLogger _, SampleModel, SampleTag, User, Dog, Mixer, Dog2)
-        Schemifier.schemify(true, ignoreLogger _, SampleModel, SampleTag, User, Dog, Mixer, Dog2)
+        Schemifier.destroyTables_!!(if (doLog) Log.infoF _ else ignoreLogger _, SampleModel, SampleTag, User, Dog, Mixer, Dog2)
+        Schemifier.schemify(true, if (doLog) Log.infoF _ else ignoreLogger _, SampleModel, SampleTag, User, Dog, Mixer, Dog2)
       }
 
-      ("Mapper for " + provider.name) should {
+      ("lowerCase Mapper for " + provider.name) ->-(lowerCase) should {
+        "lower case default table & column names" in {
+          skip("not now")
+          SampleModel.firstName.name must_== "firstName"
+          SampleModel.firstName.dbColumnName must_== "firstname"
+          SampleModel.dbTableName must_== "samplemodel"
+        }
+      }
+
+      ("snake_case Mapper for " + provider.name) ->-(snakeCase) should {
+        "snake_case default table & column names" in {
+          skip("not now")
+          SampleModel.firstName.name must_== "firstName"
+          SampleModel.firstName.dbColumnName must_== "first_name"
+          SampleModel.dbTableName must_== "sample_model"
+        }
+      }
+
+      ("Mapper for " + provider.name) ->-(lowerCase) should {
         "schemify" in {
           cleanup()
 
@@ -85,23 +104,29 @@ object MapperSpecs extends Specification {
           elwood.id.is must be_<(madeline.id.is)
         }
 
-	"basic JSON encoding/decoding works" in {
-	  cleanup()
-	  val m = SampleModel.findAll().head
-	  val json = m.encodeAsJson()
-	  val rebuilt = SampleModel.buildFromJson(json)
-	  m must_== rebuilt
-	}
+        "user defined names are not changed" in {
+          SampleTag.extraColumn.name must_== "extraColumn"
+          SampleTag.extraColumn.dbColumnName must_== "AnExtraColumn"
+          Mixer.dbTableName must_== "MIXME_UP"
+        }
+        
+        "basic JSON encoding/decoding works" in {
+          cleanup()
+          val m = SampleModel.findAll().head
+          val json = m.encodeAsJson()
+          val rebuilt = SampleModel.buildFromJson(json)
+          m must_== rebuilt
+        }
 
-	"Can JSON decode and write back" in {
-	  cleanup()
-	  val m = SampleModel.find(2).open_!
-	  val json = m.encodeAsJson()
-	  val rebuilt = SampleModel.buildFromJson(json)
-	  rebuilt.firstName("yak").save
-	  val recalled = SampleModel.find(2).open_!
-	  recalled.firstName.is must_== "yak"
-	}
+        "Can JSON decode and write back" in {
+          cleanup()
+          val m = SampleModel.find(2).open_!
+          val json = m.encodeAsJson()
+          val rebuilt = SampleModel.buildFromJson(json)
+          rebuilt.firstName("yak").save
+          val recalled = SampleModel.find(2).open_!
+          recalled.firstName.is must_== "yak"
+        }
 
 
         "Like works" in {
@@ -365,7 +390,7 @@ object MapperSpecs extends Specification {
 
   private def ignoreLogger(f: => AnyRef): Unit = ()
 }
-
+  
 object SampleTag extends SampleTag with LongKeyedMetaMapper[SampleTag] {
   override def dbAddTable = Full(populate _)
   private def populate {
@@ -381,7 +406,13 @@ class SampleTag extends LongKeyedMapper[SampleTag] with IdPK {
   def getSingleton = SampleTag // what's the "meta" server
 
   object tag extends MappedString(this, 32)
+  
   object model extends MappedLongForeignKey(this, SampleModel)
+  
+  object extraColumn extends MappedString(this, 32) {
+    override def dbColumnName = "AnExtraColumn"
+  }
+
 }
 
 object SampleModel extends SampleModel with KeyedMetaMapper[Long, SampleModel] {
@@ -540,6 +571,5 @@ object Dog2 extends Dog2 with LongKeyedMetaMapper[Dog2] {
     new _root_.java.util.Date(1257089309453L)
   }
 }
-
 }
 }
