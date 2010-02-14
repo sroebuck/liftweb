@@ -20,8 +20,16 @@ package common {
 import _root_.org.slf4j.{MDC => SLF4JMDC, Marker, Logger => SLF4JLogger, LoggerFactory}
 
 object Logger {
-  def apply(clz: Class[_]): LiftLogger = new WrappedLogger(LoggerFactory.getLogger(clz))
-  def apply(name: String): LiftLogger = new WrappedLogger(LoggerFactory.getLogger(name))
+  def loggerNameFor(ref: AnyRef) = {
+    val className = ref.getClass.getName
+    if (className endsWith "$") 
+      className.substring(0, className.length - 1)
+    else 
+      className
+  }
+
+  def apply(ref: AnyRef): Logger = new WrappedLogger(LoggerFactory.getLogger(loggerNameFor(ref)))
+  def apply(name: String): Logger = new WrappedLogger(LoggerFactory.getLogger(name))
   
  /**
    * Set the Mapped Diagnostic Context for the thread and execute
@@ -79,7 +87,7 @@ object MDC {
  * The main purpose is to utilize Scala features for logging
  * 
  */
-trait LiftLogger {
+trait Logger {
   @transient val logger: SLF4JLogger 
   
   def assertLog(assertion: Boolean, msg: => String) = if (assertion) info(msg)
@@ -118,20 +126,20 @@ trait LiftLogger {
   def error(msg: => AnyRef, t: Throwable, marker: Marker) = if (logger.isErrorEnabled) logger.error(marker,String.valueOf(msg), t)
 }
 
-class WrappedLogger(val logger: SLF4JLogger) extends LiftLogger
+class WrappedLogger(val logger: SLF4JLogger) extends Logger
 
 /**
  * Mixin with a nested LiftLogger
  */
-trait Logger {
-  @transient protected val logger = Logger(this.getClass)
+trait Logging {
+  @transient protected val logger = Logger(this)
 }
 
 /**
  * Mixin with direct access to logging functionality
  */
-trait Logging extends LiftLogger {
-  val logger = LoggerFactory.getLogger(this.getClass)
+trait Loggable extends Logger {
+  val logger = LoggerFactory.getLogger(Logger.loggerNameFor(this))
 }
 
 }

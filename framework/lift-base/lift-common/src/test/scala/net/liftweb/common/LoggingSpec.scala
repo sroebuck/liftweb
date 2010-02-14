@@ -31,9 +31,14 @@ import _root_.org.scalacheck.Prop.{forAll}
 class LoggingTest extends Runner(LoggingUnit) with JUnit
 class LoggingUnitTest extends JUnit4(LoggingUnit) 
 
-class MyTopClass extends Logging {
+class MyTopClass extends Loggable {
   val x=1
   warn("Top level class logging")
+}
+
+object MyTopObj extends Loggable {
+  val x=1
+  warn("Top level object logging")
 }
 
 object LoggingUnit extends Specification {
@@ -63,17 +68,18 @@ object LoggingUnit extends Specification {
     }
     
     "be mixed directly into object" in {
-      object MyObj extends Logging {
+      object MyObj extends Loggable {
         info("direct Hello")
         val x = 2
       }
       MyObj.x must_== 2
 
       (new MyTopClass).x must_== 1
+      MyTopObj.x must_==1
     }
     
     "be nested in object" in {
-      object MyObj extends Logger {
+      object MyObj extends Logging {
         logger.info("nested Hello")
         val x = 2
       }
@@ -123,7 +129,7 @@ object LoggingUnit extends Specification {
       1 must_== 1
     }
      "trace function results" in {
-      object MyObj extends Logging {
+      object MyObj extends Loggable {
           val l = 1 to 10
           info("Starting test")
           trace("result",l.foldLeft(0)(trace("lhs",_) + trace("rhs",_))) must_== l.foldLeft(0)(_+_)
