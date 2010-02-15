@@ -20,16 +20,16 @@ package common {
 import _root_.org.slf4j.{MDC => SLF4JMDC, Marker, Logger => SLF4JLogger, LoggerFactory}
 
 object Logger {
-  def loggerNameFor(ref: AnyRef) = {
-    val className = ref.getClass.getName
+  def loggerNameFor(cls: Class[_]) = {
+    val className = cls.getName
     if (className endsWith "$") 
       className.substring(0, className.length - 1)
     else 
       className
   }
 
-  def apply(ref: AnyRef): Logger = new WrappedLogger(LoggerFactory.getLogger(loggerNameFor(ref)))
-  def apply(name: String): Logger = new WrappedLogger(LoggerFactory.getLogger(name))
+  def apply(cls: Class[_]) = new WrappedLogger(LoggerFactory.getLogger(loggerNameFor(cls)))
+  def apply(name: String) = new WrappedLogger(LoggerFactory.getLogger(name))
   
  /**
    * Set the Mapped Diagnostic Context for the thread and execute
@@ -44,12 +44,10 @@ object Logger {
     try {
       f
     } finally {
-      if (old eq null) {
+      if (old eq null) 
         MDC.clear
-      }
-      else          {
+      else  
         SLF4JMDC.setContextMap(old)
-      }
     }
   }
 }
@@ -81,22 +79,37 @@ object MDC {
   def clear() = org.slf4j.MDC.clear
 }
 
+trait Logged {
+  @transient val logger: SLF4JLogger
+}
+
 /**
- * LiftLogegr is a thin wrapper on top of an SLF4J Logger
+ * Logger is a thin wrapper on top of an SLF4J Logger
  *
  * The main purpose is to utilize Scala features for logging
  * 
+ * Note that the dynamic type of "this" is used when this trait is
+ * mixed in. 
+ * 
+ * This may not always be what you want. If you need the static type, you have to declare your
+ * own Logger:
+ * 
+ * class MyClass {
+ *   val logger = Logger(classOf[MyClass])
+ * }
+ * 
  */
-trait Logger {
-  @transient val logger: SLF4JLogger 
+trait Logger  {
+  @transient private val logger: SLF4JLogger = _logger
+  protected def _logger = LoggerFactory.getLogger(Logger.loggerNameFor(this.getClass))
   
   def assertLog(assertion: Boolean, msg: => String) = if (assertion) info(msg)
 
   /**
-   * Print the value of v and return it Useful for tracing values in expressions
+   * Log the value of v with trace and return v. Useful for tracing values in expressions
    */
   def trace[T](msg: String, v: T): T = {
-    logger.info(msg+": "+v.toString)
+    logger.trace(msg+": "+v.toString)
     v
   }
   
@@ -126,20 +139,15 @@ trait Logger {
   def error(msg: => AnyRef, t: Throwable, marker: Marker) = if (logger.isErrorEnabled) logger.error(marker,String.valueOf(msg), t)
 }
 
-class WrappedLogger(val logger: SLF4JLogger) extends Logger
-
-/**
- * Mixin with a nested LiftLogger
- */
-trait Logging {
-  @transient protected val logger = Logger(this)
+class WrappedLogger(l: SLF4JLogger) extends Logger {
+  override val _logger = l
 }
 
 /**
- * Mixin with direct access to logging functionality
+ * Mixin with a nested Logger
  */
-trait Loggable extends Logger {
-  val logger = LoggerFactory.getLogger(Logger.loggerNameFor(this))
+trait Loggable {
+  @transient val logger = Logger(this.getClass)
 }
 
 }

@@ -31,21 +31,21 @@ import _root_.org.scalacheck.Prop.{forAll}
 class LoggingTest extends Runner(LoggingUnit) with JUnit
 class LoggingUnitTest extends JUnit4(LoggingUnit) 
 
-class MyTopClass extends Loggable {
+class MyTopClass extends Logger {
   val x=1
-  warn("Top level class logging")
+  debug("Top level class logging")
 }
 
-object MyTopObj extends Loggable {
+object MyTopObj extends Logger {
   val x=1
-  warn("Top level object logging")
+  debug("Top level object logging")
 }
 
 object LoggingUnit extends Specification {
   "Logging" can {
     doFirst {
-        import _root_.org.apache.log4j._
-        import _root_.org.apache.log4j.xml._
+      import _root_.org.apache.log4j._
+      import _root_.org.apache.log4j.xml._
       val  defaultProps =
         """<?xml version="1.0" encoding="UTF-8" ?>
         <!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
@@ -56,7 +56,7 @@ object LoggingUnit extends Specification {
         </layout>
         </appender>
         <root>
-        <priority value ="INFO"/>
+        <priority value ="trace"/>
         <appender-ref ref="appender"/>
         </root>
         </log4j:configuration>
@@ -68,7 +68,7 @@ object LoggingUnit extends Specification {
     }
     
     "be mixed directly into object" in {
-      object MyObj extends Loggable {
+      object MyObj extends Logger {
         info("direct Hello")
         val x = 2
       }
@@ -79,7 +79,7 @@ object LoggingUnit extends Specification {
     }
     
     "be nested in object" in {
-      object MyObj extends Logging {
+      object MyObj extends Loggable {
         logger.info("nested Hello")
         val x = 2
       }
@@ -126,16 +126,37 @@ object LoggingUnit extends Specification {
         logger.info("Logged with mdc1=(1,2), mdc2=xx")
       }
       logger.info("Logged with mdc1=(1,2), mdc2=yy")
+      MDC.clear
+      logger.info("No MDC values")
       1 must_== 1
     }
-     "trace function results" in {
-      object MyObj extends Loggable {
+    "trace function results" in {
+      object MyObj extends Logger {
           val l = 1 to 10
           info("Starting test")
           trace("result",l.foldLeft(0)(trace("lhs",_) + trace("rhs",_))) must_== l.foldLeft(0)(_+_)
           val x = 1
       }
       MyObj.x
+    }
+
+    "be used in different levels and yield different loggers" in {
+      class First  {
+        //private val logger = Logger(classOf[First])
+        First.info("In first")
+      }
+      object First extends  Logger
+      
+      trait Second {
+        private val logger = Logger(classOf[Second])
+        logger.info("In second")
+      }
+      
+      class C extends First with Second with Logger {
+        info("In C")
+        val x = 2
+      }
+      (new C).x must_== 2
     }
   }
 }
