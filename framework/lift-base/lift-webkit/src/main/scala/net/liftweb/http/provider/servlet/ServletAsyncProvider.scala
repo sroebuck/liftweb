@@ -24,11 +24,15 @@ package net.liftweb.http.provider.servlet
 trait ServletAsyncProvider {
 
   /**
+   * Returns whether or not the Servlet Async Provider has suspend and resume support.
+   *
    * @return true if the underlying JEE container supports suspend/resume
    */
   def suspendResumeSupport_? : Boolean
 
-  /** 
+  /**
+   * Return the object (if any) associated with the resume call.
+   *
    * @return the reference that was provided in the resume call 
    */ 
   def resumeInfo : Option[Any]
@@ -43,7 +47,7 @@ trait ServletAsyncProvider {
   /**
    * Resumes this request
    *
-   * @param ref - an object that will be associated with the resumed request
+   * @param ref an object that will be associated with the resumed request
    */
   def resume(ref: AnyRef): Unit
 

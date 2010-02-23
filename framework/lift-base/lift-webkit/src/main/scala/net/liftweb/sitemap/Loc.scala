@@ -24,17 +24,31 @@ import Helpers._
 import auth._
 
 import _root_.scala.xml.{NodeSeq, Text}
+import builtin.snippet.Loc
 
 /**
- * A menu location
+ * A menu location.  This trait represents an entry in the SiteMap Menu.  Beyond the basic link which is stored in a
+ * `Link` object, the `Loc` also records a unique `name` (or ID) for the location, and the `text` that will be presented
+ * if the location is displayed in a web site menu.
  */
 trait Loc[T] {
+  /**
+   * The unique name for this location.  This name is not used to display the location in menus but may be used to
+   * uniquely reference the location from within code.
+   */
   def name: String
 
+  /**
+   * The URI that this location links to.
+   */
   def link: Loc.Link[T]
 
+  /**
+   * The default textual description of this link that will be used when displaying the link in the SiteMap menu.
+   */
   def text: Loc.LinkText[T]
 
+  
   def overrideValue: Box[T] = Empty
 
   object requestValue extends RequestVar[Box[T]](Empty) {
@@ -520,16 +534,16 @@ object Loc {
   case class LinkText[-T](text: T => NodeSeq)
 
   /**
-   * This defines the Link to the Loc.
+   * A class representing a web link to a single URI or a URI and it's children.
    *
-   * @param uri -- the relative (to parent menu item) or absolute path
-   * to match for this Loc. <br />
-   * "/foo" -- match the "foo" file <br/>
-   * "foo" -- match the foo file in the directory defined by the parent Menu
-   *
-   * @param matchHead_? -- false -- absolute match.  true -- match anything
-   * that begins with the same path.  Useful for opening a set of directories
-   * (for example, help pages)
+   * @param uriList the relative (to parent menu item) or absolute path to match for this Loc.
+   * @param matchHead_? `false` if an absolute match; `true` matches anything that begins with the same path.
+   * @example
+   * {{{
+   * val myUtilsIndex = new Link("utils" :: "index" :: Nil, false)
+   * }}}
+   * @example
+   * `/foo` matches the `foo` file. `foo` matchs the `foo` file in the directory defined by the parent Menu.
    */
   class Link[-T](val uriList: List[String], val matchHead_? : Boolean) extends PartialFunction[Req, Box[Boolean]] {
     def this(b: List[String]) = this(b, false)
@@ -550,7 +564,7 @@ object Loc {
     def pathList(value: T): List[String] = uriList
 
     /**
-     * Creates a string representation of the path to the Loc.
+     * Create a string representation of the path to the Loc.
      */
     def createPath(value: T): String = {
       val path: List[String] = pathList(value)
